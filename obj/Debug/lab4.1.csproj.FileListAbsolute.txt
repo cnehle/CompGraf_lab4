@@ -1,9 +1,0 @@
-C:\Users\vika\Documents\GitHub\CompGraf_lab4\bin\Debug\lab4.1.exe.config
-C:\Users\vika\Documents\GitHub\CompGraf_lab4\bin\Debug\lab4.1.exe
-C:\Users\vika\Documents\GitHub\CompGraf_lab4\bin\Debug\lab4.1.pdb
-C:\Users\vika\Documents\GitHub\CompGraf_lab4\obj\Debug\lab4.1.csproj.AssemblyReference.cache
-C:\Users\vika\Documents\GitHub\CompGraf_lab4\obj\Debug\lab4._1.Properties.Resources.resources
-C:\Users\vika\Documents\GitHub\CompGraf_lab4\obj\Debug\lab4.1.csproj.GenerateResource.cache
-C:\Users\vika\Documents\GitHub\CompGraf_lab4\obj\Debug\lab4.1.csproj.CoreCompileInputs.cache
-C:\Users\vika\Documents\GitHub\CompGraf_lab4\obj\Debug\lab4.1.exe
-C:\Users\vika\Documents\GitHub\CompGraf_lab4\obj\Debug\lab4.1.pdb
