@@ -19,21 +19,44 @@ namespace lab4._1
         private bool isSettingRotationCenter = false;
         private bool isSettingScalingCenter = false;
 
+        // Режимы работы для динамического ввода
+        private enum InteractionMode
+        {
+            CreatePolygon,
+            SetTestPoint,
+            SetEdge1,
+            SetEdge2,
+            SetEdgeForClassification,
+            SetPointForClassification
+        }
+        private InteractionMode currentMode = InteractionMode.CreatePolygon;
+
+        // Для классификации точки относительно ребра
+        private Edge? classificationEdge = null;
+        private PointF? classificationPoint = null;
+
+        // Для выбора полигонов для проверки и преобразований
+        private Polygon selectedPolygonForTest = null;
+        private Polygon selectedPolygonForTransform = null;
+
         // Элементы управления
         private ComboBox cmbTransformType;
         private TextBox txtDx, txtDy, txtAngle, txtScaleX, txtScaleY;
-        private Button btnApplyTransform, btnClear, btnCheckPoint, btnCheckEdges;
+        private Button btnApplyTransform, btnClear, btnCheckPoint, btnCheckEdges, btnClassifyPoint;
         private Label lblStatus;
         private Panel drawingPanel;
         private GroupBox grpTransformParams;
         private Label lblDx, lblDy, lblAngle, lblScaleX, lblScaleY;
         private Button btnSetRotationCenter, btnSetScalingCenter;
+        private ComboBox cmbPolygonForTest;
+        private ComboBox cmbPolygonForTransform;
 
         public Form1()
         {
             InitializeComponent();
             SetupUI();
             UpdateControlsVisibility();
+            UpdatePolygonSelectionComboBoxes();
         }
 
         private void SetupUI()
@@ -59,12 +82,30 @@ namespace lab4._1
             {
                 Text = "Аффинные преобразования",
                 Location = new Point(720, 10),
-                Size = new Size(260, 400)
+                Size = new Size(260, 450)
             };
+
+            // Выбор полигона для преобразований
+            Label lblPolygonTransform = new Label
+            {
+                Text = "Полигон для преобразований:",
+                Location = new Point(10, 20),
+                Size = new Size(240, 15)
+            };
+            grpTransform.Controls.Add(lblPolygonTransform);
+
+            cmbPolygonForTransform = new ComboBox
+            {
+                Location = new Point(10, 40),
+                Size = new Size(240, 25),
+                DropDownStyle = ComboBoxStyle.DropDownList
+            };
+            cmbPolygonForTransform.SelectedIndexChanged += CmbPolygonForTransform_SelectedIndexChanged;
+            grpTransform.Controls.Add(cmbPolygonForTransform);
 
             cmbTransformType = new ComboBox
             {
-                Location = new Point(10, 20),
+                Location = new Point(10, 75),
                 Size = new Size(240, 25),
                 DropDownStyle = ComboBoxStyle.DropDownList
             };
@@ -83,7 +124,7 @@ namespace lab4._1
             grpTransformParams = new GroupBox
             {
                 Text = "Параметры преобразования",
-                Location = new Point(10, 50),
+                Location = new Point(10, 110),
                 Size = new Size(240, 200)
             };
 
@@ -119,7 +160,7 @@ namespace lab4._1
             btnSetScalingCenter = new Button
             {
                 Text = "Установить центр масштабирования",
-                Location = new Point(10, 55),
+                Location = new Point(10, 85),
                 Size = new Size(220, 25)
             };
             btnSetScalingCenter.Click += (s, e) =>
@@ -140,7 +181,7 @@ namespace lab4._1
             btnApplyTransform = new Button
             {
                 Text = "Применить преобразование",
-                Location = new Point(10, 260),
+                Location = new Point(10, 320),
                 Size = new Size(240, 30)
             };
             btnApplyTransform.Click += BtnApplyTransform_Click;
@@ -152,14 +193,32 @@ namespace lab4._1
             GroupBox grpOperations = new GroupBox
             {
                 Text = "Операции",
-                Location = new Point(720, 420),
-                Size = new Size(260, 150)
+                Location = new Point(720, 470),
+                Size = new Size(260, 230) // Увеличили высоту для дополнительной кнопки
             };
+
+            // Выбор полигона для проверки
+            Label lblPolygonSelect = new Label
+            {
+                Text = "Полигон для проверки точки:",
+                Location = new Point(10, 20),
+                Size = new Size(240, 15)
+            };
+            grpOperations.Controls.Add(lblPolygonSelect);
+
+            cmbPolygonForTest = new ComboBox
+            {
+                Location = new Point(10, 40),
+                Size = new Size(240, 25),
+                DropDownStyle = ComboBoxStyle.DropDownList
+            };
+            cmbPolygonForTest.SelectedIndexChanged += CmbPolygonForTest_SelectedIndexChanged;
+            grpOperations.Controls.Add(cmbPolygonForTest);
 
             btnClear = new Button
             {
                 Text = "Очистить сцену",
-                Location = new Point(10, 20),
+                Location = new Point(10, 75),
                 Size = new Size(240, 30)
             };
             btnClear.Click += BtnClear_Click;
@@ -168,7 +227,7 @@ namespace lab4._1
             btnCheckPoint = new Button
             {
                 Text = "Проверить точку в полигоне",
-                Location = new Point(10, 60),
+                Location = new Point(10, 115),
                 Size = new Size(240, 30)
             };
             btnCheckPoint.Click += BtnCheckPoint_Click;
@@ -177,11 +236,21 @@ namespace lab4._1
             btnCheckEdges = new Button
             {
                 Text = "Проверить пересечение ребер",
-                Location = new Point(10, 100),
+                Location = new Point(10, 155),
                 Size = new Size(240, 30)
             };
             btnCheckEdges.Click += BtnCheckEdges_Click;
             grpOperations.Controls.Add(btnCheckEdges);
+
+            // Кнопка классификации точки - теперь внутри группы операций
+            btnClassifyPoint = new Button
+            {
+                Text = "Классифицировать точку относительно ребра",
+                Location = new Point(10, 195),
+                Size = new Size(240, 30)
+            };
+            btnClassifyPoint.Click += BtnClassifyPoint_Click;
+            grpOperations.Controls.Add(btnClassifyPoint);
 
             this.Controls.Add(grpOperations);
 
@@ -202,6 +271,59 @@ namespace lab4._1
         private void CmbTransformType_SelectedIndexChanged(object sender, EventArgs e)
         {
             UpdateControlsVisibility();
+        }
+
+        private void CmbPolygonForTest_SelectedIndexChanged(object sender, EventArgs e)
+        {
+            if (cmbPolygonForTest.SelectedIndex >= 0 && cmbPolygonForTest.SelectedIndex < polygons.Count)
+            {
+                selectedPolygonForTest = polygons[cmbPolygonForTest.SelectedIndex];
+                drawingPanel.Invalidate();
+            }
+            else
+            {
+                selectedPolygonForTest = null;
+            }
+        }
+
+        private void CmbPolygonForTransform_SelectedIndexChanged(object sender, EventArgs e)
+        {
+            if (cmbPolygonForTransform.SelectedIndex >= 0 && cmbPolygonForTransform.SelectedIndex < polygons.Count)
+            {
+                selectedPolygonForTransform = polygons[cmbPolygonForTransform.SelectedIndex];
+                drawingPanel.Invalidate();
+            }
+            else
+            {
+                selectedPolygonForTransform = null;
+            }
+        }
+
+        private void UpdatePolygonSelectionComboBoxes()
+        {
+            cmbPolygonForTest.Items.Clear();
+            cmbPolygonForTransform.Items.Clear();
+
+            for (int i = 0; i < polygons.Count; i++)
+            {
+                string polygonType = GetPolygonType(polygons[i]);
+                string itemText = $"Полигон {i + 1} ({polygonType}, {polygons[i].Points.Count} вершин)";
+                cmbPolygonForTest.Items.Add(itemText);
+                cmbPolygonForTransform.Items.Add(itemText);
+            }
+
+            if (polygons.Count > 0)
+            {
+                cmbPolygonForTest.SelectedIndex = 0;
+                cmbPolygonForTransform.SelectedIndex = 0;
+            }
+            else
+            {
+                selectedPolygonForTest = null;
+                selectedPolygonForTransform = null;
+            }
+
+            drawingPanel.Invalidate();
         }
 
         private void UpdateControlsVisibility()
@@ -259,6 +381,7 @@ namespace lab4._1
         {
             PointF clickPoint = new PointF(e.X, e.Y);
 
+            // Обработка установки центров преобразований
             if (isSettingRotationCenter)
             {
                 rotationCenter = clickPoint;
@@ -277,7 +400,54 @@ namespace lab4._1
                 return;
             }
 
-            if (e.Button == MouseButtons.Left)
+            // ВСЕГДА разрешаем создание полигонов левой кнопкой мыши, если не в специальном режиме
+            if (e.Button == MouseButtons.Left && currentMode == InteractionMode.CreatePolygon)
+            {
+                HandlePolygonCreation(clickPoint, e.Button);
+                drawingPanel.Invalidate();
+                return;
+            }
+
+            // Обработка разных режимов работы
+            switch (currentMode)
+            {
+                case InteractionMode.CreatePolygon:
+                    HandlePolygonCreation(clickPoint, e.Button);
+                    break;
+
+                case InteractionMode.SetTestPoint:
+                    HandleTestPointSetting(clickPoint);
+                    break;
+
+                case InteractionMode.SetEdge1:
+                    HandleEdge1Setting(clickPoint);
+                    break;
+
+                case InteractionMode.SetEdge2:
+                    HandleEdge2Setting(clickPoint);
+                    break;
+
+                case InteractionMode.SetEdgeForClassification:
+                    HandleEdgeForClassificationSetting(clickPoint);
+                    break;
+
+                case InteractionMode.SetPointForClassification:
+                    HandlePointForClassificationSetting(clickPoint);
+                    break;
+            }
+
+            drawingPanel.Invalidate();
+        }
+
+        // Обработка создания полигонов
+        private void HandlePolygonCreation(PointF clickPoint, MouseButtons button)
+        {
+            // Всегда разрешаем создание полигонов, независимо от текущего режима
+            // (если только мы не в процессе установки центров)
+            if (isSettingRotationCenter || isSettingScalingCenter)
+                return;
+
+            if (button == MouseButtons.Left)
             {
                 if (currentPolygon == null)
                 {
@@ -287,29 +457,175 @@ namespace lab4._1
                 currentPolygon.AddPoint(clickPoint);
                 lblStatus.Text = $"Добавлена точка ({clickPoint.X:F1}, {clickPoint.Y:F1}). Полигон: {currentPolygon.Points.Count} вершин";
             }
-            else if (e.Button == MouseButtons.Right)
+            else if (button == MouseButtons.Right)
             {
                 if (currentPolygon != null && currentPolygon.Points.Count > 0)
                 {
                     currentPolygon.IsClosed = true;
 
                     // Определяем тип полигона для отображения в статусе
-                    string polygonType = "неопределенный";
-                    if (currentPolygon.Points.Count == 1)
-                        polygonType = "точка";
-                    else if (currentPolygon.Points.Count == 2)
-                        polygonType = "отрезок";
-                    else if (currentPolygon.IsConvex())
-                        polygonType = "выпуклый";
-                    else
-                        polygonType = "невыпуклый";
+                    string polygonType = GetPolygonType(currentPolygon);
 
                     lblStatus.Text = $"Полигон завершен. Тип: {polygonType}, вершин: {currentPolygon.Points.Count}. Кликните для создания нового полигона";
+
+                    // Обновляем комбобоксы выбора полигонов
+                    UpdatePolygonSelectionComboBoxes();
+
                     currentPolygon = null;
                 }
             }
+        }
 
-            drawingPanel.Invalidate();
+        // Обработка установки тестовой точки
+        private void HandleTestPointSetting(PointF clickPoint)
+        {
+            testPoint = clickPoint;
+            drawingPanel.Invalidate(); // Сразу перерисовываем, чтобы показать точку
+
+            // Проверяем точку в выбранном полигоне
+            CheckPointInPolygon();
+        }
+
+        // Обработка установки первого ребра
+        private void HandleEdge1Setting(PointF clickPoint)
+        {
+            Edge? nearestEdge = FindNearestEdge(clickPoint);
+            if (nearestEdge.HasValue)
+            {
+                testEdge1 = nearestEdge.Value;
+                currentMode = InteractionMode.SetEdge2;
+                lblStatus.Text = "Выберите второе ребро (кликните как можно ближе)";
+                drawingPanel.Invalidate(); // Перерисовываем чтобы показать первое ребро
+            }
+            else
+            {
+                MessageBox.Show("Ребро не найдено. Кликните ближе к существующему ребру.", "Информация", MessageBoxButtons.OK, MessageBoxIcon.Information);
+            }
+        }
+
+        // Обработка установки второго ребра
+        private void HandleEdge2Setting(PointF clickPoint)
+        {
+            Edge? nearestEdge = FindNearestEdge(clickPoint);
+            if (nearestEdge.HasValue)
+            {
+                testEdge2 = nearestEdge.Value;
+                drawingPanel.Invalidate(); // Сразу перерисовываем, чтобы показать оба ребра
+                CheckEdgeIntersection();
+            }
+            else
+            {
+                MessageBox.Show("Ребро не найдено. Кликните ближе к существующему ребру.", "Информация", MessageBoxButtons.OK, MessageBoxIcon.Information);
+            }
+        }
+
+        // Обработка установки ребра для классификации
+        private void HandleEdgeForClassificationSetting(PointF clickPoint)
+        {
+            Edge? nearestEdge = FindNearestEdge(clickPoint);
+            if (nearestEdge.HasValue)
+            {
+                classificationEdge = nearestEdge.Value;
+                currentMode = InteractionMode.SetPointForClassification;
+                lblStatus.Text = "Выберите точку для классификации (кликните в нужном месте)";
+                drawingPanel.Invalidate(); // Перерисовываем чтобы показать ребро
+            }
+            else
+            {
+                MessageBox.Show("Ребро не найдено. Кликните ближе к существующему ребру.", "Информация", MessageBoxButtons.OK, MessageBoxIcon.Information);
+            }
+        }
+
+        // Обработка установки точки для классификации
+        private void HandlePointForClassificationSetting(PointF clickPoint)
+        {
+            classificationPoint = clickPoint;
+            drawingPanel.Invalidate(); // Сразу перерисовываем, чтобы показать точку
+            ClassifyPointRelativeToEdge();
+        }
+
+        // Поиск ближайшего ребра к точке
+        private Edge? FindNearestEdge(PointF point, float maxDistance = 15.0f)
+        {
+            Edge? nearestEdge = null;
+            float minDistance = float.MaxValue;
+
+            foreach (var polygon in polygons)
+            {
+                for (int i = 0; i < polygon.Points.Count; i++)
+                {
+                    int nextIndex = (i + 1) % polygon.Points.Count;
+                    if (!polygon.IsClosed && i == polygon.Points.Count - 1)
+                        continue;
+
+                    PointF start = polygon.Points[i];
+                    PointF end = polygon.Points[nextIndex];
+                    Edge edge = new Edge(start, end);
+
+                    float distance = DistanceFromPointToEdge(point, edge);
+                    if (distance < minDistance && distance <= maxDistance)
+                    {
+                        minDistance = distance;
+                        nearestEdge = edge;
+                    }
+                }
+            }
+
+            return nearestEdge;
+        }
+
+        // Расстояние от точки до ребра
+        private float DistanceFromPointToEdge(PointF point, Edge edge)
+        {
+            return PointToLineDistance(point, edge.Start, edge.End);
+        }
+
+        // Расстояние от точки до прямой
+        private float PointToLineDistance(PointF point, PointF lineStart, PointF lineEnd)
+        {
+            float A = point.X - lineStart.X;
+            float B = point.Y - lineStart.Y;
+            float C = lineEnd.X - lineStart.X;
+            float D = lineEnd.Y - lineStart.Y;
+
+            float dot = A * C + B * D;
+            float lenSq = C * C + D * D;
+            float param = (lenSq != 0) ? dot / lenSq : -1;
+
+            float xx, yy;
+
+            if (param < 0)
+            {
+                xx = lineStart.X;
+                yy = lineStart.Y;
+            }
+            else if (param > 1)
+            {
+                xx = lineEnd.X;
+                yy = lineEnd.Y;
+            }
+            else
+            {
+                xx = lineStart.X + param * C;
+                yy = lineStart.Y + param * D;
+            }
+
+            float dx = point.X - xx;
+            float dy = point.Y - yy;
+            return (float)Math.Sqrt(dx * dx + dy * dy);
+        }
+
+        // Определение типа полигона
+        private string GetPolygonType(Polygon polygon)
+        {
+            if (polygon.Points.Count == 1)
+                return "точка";
+            else if (polygon.Points.Count == 2)
+                return "отрезок";
+            else if (polygon.IsConvex())
+                return "выпуклый";
+            else
+                return "невыпуклый";
         }
 
         private void DrawingPanel_Paint(object sender, PaintEventArgs e)
@@ -318,25 +634,77 @@ namespace lab4._1
             g.SmoothingMode = SmoothingMode.AntiAlias;
 
             // Рисуем полигоны
-            foreach (var polygon in polygons)
+            for (int i = 0; i < polygons.Count; i++)
             {
-                polygon.Draw(g);
+                var polygon = polygons[i];
+
+                // Выделяем выбранные полигоны
+                if (polygon == selectedPolygonForTest)
+                {
+                    polygon.Draw(g, Color.Blue, Color.DarkBlue);
+                }
+                else if (polygon == selectedPolygonForTransform)
+                {
+                    polygon.Draw(g, Color.Green, Color.DarkGreen);
+                }
+                else
+                {
+                    polygon.Draw(g, Color.Black, Color.Gray);
+                }
+
+                // Подписываем полигоны номерами
+                if (polygon.Points.Count > 0)
+                {
+                    PointF center = polygon.GetCenter();
+                    string label = $"#{i + 1}";
+
+                    // Проверяем статусы полигона
+                    bool isTest = polygon == selectedPolygonForTest;
+                    bool isTransform = polygon == selectedPolygonForTransform;
+
+                    // Формируем строку статусов
+                    if (isTest && isTransform)
+                        label += " (тест, преобр)";
+                    else if (isTest)
+                        label += " (тест)";
+                    else if (isTransform)
+                        label += " (преобр)";
+
+                    g.DrawString(label, this.Font, Brushes.Black, center.X + 5, center.Y - 10);
+                }
             }
 
-            // Рисуем тестовую точку
+            // Рисуем тестовую точку (всегда, если она установлена)
             if (testPoint.HasValue)
             {
                 g.FillEllipse(Brushes.Red, testPoint.Value.X - 3, testPoint.Value.Y - 3, 6, 6);
+                g.DrawEllipse(Pens.DarkRed, testPoint.Value.X - 5, testPoint.Value.Y - 5, 10, 10);
+                g.DrawString("Выбранная точка", this.Font, Brushes.Red, testPoint.Value.X + 5, testPoint.Value.Y - 6);
             }
 
-            // Рисуем тестовые ребра
+            // Рисуем тестовые ребра (всегда, если они установлены)
             if (testEdge1.HasValue)
             {
-                DrawEdge(g, testEdge1.Value, Pens.Blue);
+                DrawEdge(g, testEdge1.Value, Pens.Blue, "Ребро 1");
             }
             if (testEdge2.HasValue)
             {
-                DrawEdge(g, testEdge2.Value, Pens.Green);
+                DrawEdge(g, testEdge2.Value, Pens.Green, "Ребро 2");
+            }
+
+            // Рисуем ребро и точку для классификации (всегда, если они установлены)
+            if (classificationEdge.HasValue)
+            {
+                DrawEdge(g, classificationEdge.Value, Pens.Orange, "Ребро для классификации");
+
+                // Рисуем стрелку направления
+                DrawDirectionArrow(g, classificationEdge.Value);
+            }
+            if (classificationPoint.HasValue)
+            {
+                g.FillEllipse(Brushes.Purple, classificationPoint.Value.X - 3, classificationPoint.Value.Y - 3, 6, 6);
+                g.DrawEllipse(Pens.DarkViolet, classificationPoint.Value.X - 5, classificationPoint.Value.Y - 5, 10, 10);
+                g.DrawString("Точка для классификации", this.Font, Brushes.Purple, classificationPoint.Value.X + 5, classificationPoint.Value.Y - 6);
             }
 
             // Рисуем центры преобразований
@@ -347,22 +715,68 @@ namespace lab4._1
             g.DrawString("S", this.Font, Brushes.Purple, scalingCenter.X + 5, scalingCenter.Y - 6);
         }
 
-        private void DrawEdge(Graphics g, Edge edge, Pen pen)
+        private void DrawEdge(Graphics g, Edge edge, Pen pen, string label = "")
         {
             g.DrawLine(pen, edge.Start, edge.End);
             g.FillEllipse(Brushes.Blue, edge.Start.X - 2, edge.Start.Y - 2, 4, 4);
             g.FillEllipse(Brushes.Green, edge.End.X - 2, edge.End.Y - 2, 4, 4);
+
+            if (!string.IsNullOrEmpty(label))
+            {
+                PointF midPoint = new PointF((edge.Start.X + edge.End.X) / 2, (edge.Start.Y + edge.End.Y) / 2);
+                g.DrawString(label, this.Font, pen.Brush, midPoint.X + 5, midPoint.Y - 6);
+            }
+        }
+
+        // Функция: Рисование стрелки направления
+        private void DrawDirectionArrow(Graphics g, Edge edge)
+        {
+            // Вычисляем середину ребра
+            PointF midPoint = new PointF(
+                (edge.Start.X + edge.End.X) / 2,
+                (edge.Start.Y + edge.End.Y) / 2
+            );
+
+            // Вычисляем направление ребра
+            float dx = edge.End.X - edge.Start.X;
+            float dy = edge.End.Y - edge.Start.Y;
+
+            // Нормализуем вектор направления
+            float length = (float)Math.Sqrt(dx * dx + dy * dy);
+            if (length > 0)
+            {
+                dx /= length;
+                dy /= length;
+            }
+
+            // Вычисляем перпендикуляр для стрелки
+            float arrowLength = 10;
+            float arrowWidth = 6;
+
+            // Точки стрелки
+            PointF arrowPoint1 = new PointF(
+                midPoint.X - dx * arrowLength - dy * arrowWidth,
+                midPoint.Y - dy * arrowLength + dx * arrowWidth
+            );
+
+            PointF arrowPoint2 = new PointF(
+                midPoint.X - dx * arrowLength + dy * arrowWidth,
+                midPoint.Y - dy * arrowLength - dx * arrowWidth
+            );
+
+            // Рисуем стрелку
+            g.FillPolygon(Brushes.Red, new PointF[] { midPoint, arrowPoint1, arrowPoint2 });
         }
 
         private void BtnApplyTransform_Click(object sender, EventArgs e)
         {
-            if (polygons.Count == 0 || polygons.Last().Points.Count == 0)
+            if (selectedPolygonForTransform == null)
             {
-                MessageBox.Show("Создайте полигон для применения преобразования");
+                MessageBox.Show("Выберите полигон для преобразования", "Информация", MessageBoxButtons.OK, MessageBoxIcon.Information);
                 return;
             }
 
-            Polygon polygon = polygons.Last();
+            Polygon polygon = selectedPolygonForTransform;
             Matrix3x3 transformMatrix = Matrix3x3.Identity;
 
             try
@@ -406,7 +820,7 @@ namespace lab4._1
             }
             catch (FormatException)
             {
-                MessageBox.Show("Пожалуйста, введите корректные числовые значения");
+                MessageBox.Show("Пожалуйста, введите корректные числовые значения", "Ошибка", MessageBoxButtons.OK, MessageBoxIcon.Error);
             }
         }
 
@@ -417,91 +831,195 @@ namespace lab4._1
             testPoint = null;
             testEdge1 = null;
             testEdge2 = null;
+            classificationEdge = null;
+            classificationPoint = null;
+            selectedPolygonForTest = null;
+            selectedPolygonForTransform = null;
+
+            // ВАЖНОЕ ИСПРАВЛЕНИЕ: сбрасываем режим на создание полигонов
+            currentMode = InteractionMode.CreatePolygon;
+            isSettingRotationCenter = false;
+            isSettingScalingCenter = false;
+
+            // Обновляем комбобоксы
+            UpdatePolygonSelectionComboBoxes();
+
             drawingPanel.Invalidate();
-            lblStatus.Text = "Сцена очищена";
+            lblStatus.Text = "Сцена очищена. Кликните для создания нового полигона";
         }
 
         private void BtnCheckPoint_Click(object sender, EventArgs e)
         {
             if (polygons.Count == 0)
             {
-                MessageBox.Show("Создайте полигон для проверки");
+                MessageBox.Show("Сначала создайте полигоны", "Информация", MessageBoxButtons.OK, MessageBoxIcon.Information);
                 return;
             }
 
-            lblStatus.Text = "Введите координаты точки для проверки";
-            var result = GetPointFromUser();
-            if (result.HasValue)
+            // Проверяем, выбран ли полигон в комбобоксе
+            if (selectedPolygonForTest == null && polygons.Count > 0)
             {
-                testPoint = result.Value;
-                CheckPointInPolygon();
-                drawingPanel.Invalidate();
+                // Если не выбран, но есть полигоны - выбираем первый
+                selectedPolygonForTest = polygons[0];
+                cmbPolygonForTest.SelectedIndex = 0;
             }
+
+            currentMode = InteractionMode.SetTestPoint;
+            lblStatus.Text = "Кликните на панели для установки тестовой точки";
         }
 
         private void BtnCheckEdges_Click(object sender, EventArgs e)
         {
-            lblStatus.Text = "Введите координаты первого ребра";
-            testEdge1 = GetEdgeFromUser();
-            if (testEdge1.HasValue)
+            if (polygons.Count == 0)
             {
-                lblStatus.Text = "Введите координаты второго ребра";
-                testEdge2 = GetEdgeFromUser();
-                if (testEdge2.HasValue)
-                {
-                    CheckEdgeIntersection();
-                    drawingPanel.Invalidate();
-                }
+                MessageBox.Show("Сначала создайте полигоны", "Информация", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                return;
             }
+            currentMode = InteractionMode.SetEdge1;
+            testEdge1 = null;
+            testEdge2 = null;
+            lblStatus.Text = "Выберите первое ребро (кликните как можно ближе)";
         }
 
-        private PointF? GetPointFromUser()
+        private void BtnClassifyPoint_Click(object sender, EventArgs e)
         {
-            using (var form = new PointInputForm())
+            if (polygons.Count == 0)
             {
-                if (form.ShowDialog() == DialogResult.OK)
-                {
-                    return form.Point;
-                }
+                MessageBox.Show("Сначала создайте полигоны", "Информация", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                return;
             }
-            return null;
-        }
-
-        private Edge? GetEdgeFromUser()
-        {
-            using (var form = new EdgeInputForm())
-            {
-                if (form.ShowDialog() == DialogResult.OK)
-                {
-                    return form.Edge;
-                }
-            }
-            return null;
+            currentMode = InteractionMode.SetEdgeForClassification;
+            classificationEdge = null;
+            classificationPoint = null;
+            lblStatus.Text = "Выберите ребро для классификации (кликните как можно ближе)";
         }
 
         private void CheckPointInPolygon()
         {
-            if (!testPoint.HasValue || polygons.Count == 0) return;
-
-            foreach (var polygon in polygons)
+            if (!testPoint.HasValue || polygons.Count == 0)
             {
-                if (polygon.Points.Count < 3) continue;
-
-                bool isInside = IsPointInPolygon(testPoint.Value, polygon.Points);
-                string convexity = polygon.IsConvex() ? "выпуклого" : "невыпуклого";
-
-                MessageBox.Show($"Точка {((isInside) ? "внутри" : "вне")} {convexity} полигона");
+                MessageBox.Show("Нет тестовой точки или полигонов", "Информация", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                return;
             }
+
+            string result = "";
+
+            if (selectedPolygonForTest != null)
+            {
+                // Проверяем относительно конкретного полигона
+                if (selectedPolygonForTest.Points.Count < 3)
+                {
+                    MessageBox.Show("Выбранный полигон должен иметь хотя бы 3 вершины", "Информация", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                    return;
+                }
+
+                bool isInside = IsPointInPolygon(testPoint.Value, selectedPolygonForTest.Points);
+                string convexity = selectedPolygonForTest.IsConvex() ? "выпуклого" : "невыпуклого";
+                int polygonIndex = polygons.IndexOf(selectedPolygonForTest) + 1;
+
+                result = $"Точка {((isInside) ? "внутри" : "вне")} {convexity} полигона #{polygonIndex}";
+            }
+            else
+            {
+                // Проверяем относительно всех полигонов
+                foreach (var polygon in polygons)
+                {
+                    if (polygon.Points.Count < 3) continue;
+
+                    bool isInside = IsPointInPolygon(testPoint.Value, polygon.Points);
+                    string convexity = polygon.IsConvex() ? "выпуклого" : "невыпуклого";
+                    int polygonIndex = polygons.IndexOf(polygon) + 1;
+
+                    result += $"Точка {((isInside) ? "внутри" : "вне")} {convexity} полигона #{polygonIndex}\n";
+                }
+
+                if (string.IsNullOrEmpty(result))
+                {
+                    result = "Нет подходящих полигонов для проверки (нужны полигоны с 3+ вершинами)";
+                }
+            }
+
+            // Показываем результат, но НЕ сбрасываем точку и режим
+            MessageBox.Show(result, "Результат проверки точки", MessageBoxButtons.OK, MessageBoxIcon.Information);
+
+            // После закрытия диалога возвращаемся в обычный режим, но точка остается видимой
+            currentMode = InteractionMode.CreatePolygon;
+            lblStatus.Text = "Режим: создание полигонов. Точка остается для визуализации";
         }
 
         private void CheckEdgeIntersection()
         {
-            if (!testEdge1.HasValue || !testEdge2.HasValue) return;
+            if (!testEdge1.HasValue || !testEdge2.HasValue)
+            {
+                MessageBox.Show("Не выбраны оба ребра", "Информация", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                return;
+            }
 
             bool intersects = DoEdgesIntersect(testEdge1.Value, testEdge2.Value);
-            MessageBox.Show($"Ребра {((intersects) ? "пересекаются" : "не пересекаются")}");
+
+            // Дополнительная информация о ребрах
+            string edge1Info = $"Ребро 1: ({testEdge1.Value.Start.X:F1}, {testEdge1.Value.Start.Y:F1}) - ({testEdge1.Value.End.X:F1}, {testEdge1.Value.End.Y:F1})";
+            string edge2Info = $"Ребро 2: ({testEdge2.Value.Start.X:F1}, {testEdge2.Value.Start.Y:F1}) - ({testEdge2.Value.End.X:F1}, {testEdge2.Value.End.Y:F1})";
+
+            // НЕ сбрасываем ребра - они остаются выделенными до закрытия окна
+            MessageBox.Show($"{edge1Info}\n{edge2Info}\n\nРебра {((intersects) ? "пересекаются" : "не пересекаются")}",
+                          "Результат проверки пересечения", MessageBoxButtons.OK, MessageBoxIcon.Information);
+
+            // После закрытия диалога сбрасываем ребра и возвращаемся в обычный режим
+            testEdge1 = null;
+            testEdge2 = null;
+            currentMode = InteractionMode.CreatePolygon;
+            lblStatus.Text = "Режим: создание полигонов";
+            drawingPanel.Invalidate();
         }
 
+        private void ClassifyPointRelativeToEdge()
+        {
+            if (!classificationEdge.HasValue || !classificationPoint.HasValue)
+            {
+                MessageBox.Show("Не выбраны ребро или точка", "Информация", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                return;
+            }
+
+            Edge edge = classificationEdge.Value;
+            PointF point = classificationPoint.Value;
+
+            // ВЫЧИСЛЯЕМ ОТНОСИТЕЛЬНО НАПРАВЛЕНИЯ РЕБРА
+            // Используем исходное направление ребра (от Start к End)
+            PointF start = edge.Start;
+            PointF end = edge.End;
+
+            float cross = CrossProduct(start, end, point);
+
+            string position;
+            if (Math.Abs(cross) < 0.001f)
+            {
+                position = "НА РЕБРЕ";
+            }
+            else
+            {
+                // Определяем положение только как СЛЕВА или СПРАВА
+                // В системе координат с осью Y вниз:
+                // - Если cross > 0, точка справа от направления ребра
+                // - Если cross < 0, точка слева от направления ребра
+                position = cross > 0 ? "СПРАВА" : "СЛЕВА";
+            }
+
+            // НЕ сбрасываем сразу - показываем диалог с выделенными элементами
+            MessageBox.Show($"Точка находится {position} от ребра\n" +
+                          $"Векторное произведение: {cross:F2}\n" +
+                          $"Ребро: ({edge.Start.X:F1}, {edge.Start.Y:F1}) - ({edge.End.X:F1}, {edge.End.Y:F1})",
+                          "Классификация точки", MessageBoxButtons.OK, MessageBoxIcon.Information);
+
+            // После закрытия диалога сбрасываем выделение
+            classificationEdge = null;
+            classificationPoint = null;
+            currentMode = InteractionMode.CreatePolygon;
+            lblStatus.Text = "Режим: создание полигонов";
+            drawingPanel.Invalidate();
+        }
+
+        // Алгоритм проверки принадлежности точки полигону (метод лучей)
         private bool IsPointInPolygon(PointF point, List<PointF> polygon)
         {
             int count = 0;
@@ -521,6 +1039,7 @@ namespace lab4._1
             return count % 2 != 0;
         }
 
+        // Алгоритм проверки пересечения отрезков
         private bool DoEdgesIntersect(Edge e1, Edge e2)
         {
             float CrossProduct(PointF a, PointF b, PointF c)
@@ -528,12 +1047,56 @@ namespace lab4._1
                 return (b.X - a.X) * (c.Y - a.Y) - (b.Y - a.Y) * (c.X - a.X);
             }
 
+            bool IsPointOnSegment(PointF p, PointF a, PointF b)
+            {
+                float cross = CrossProduct(a, b, p);
+                if (Math.Abs(cross) > float.Epsilon)
+                    return false;
+
+                return p.X >= Math.Min(a.X, b.X) && p.X <= Math.Max(a.X, b.X) &&
+                       p.Y >= Math.Min(a.Y, b.Y) && p.Y <= Math.Max(a.Y, b.Y);
+            }
+
+            bool PointsEqual(PointF a, PointF b, float tolerance = 0.0001f)
+            {
+                return Math.Abs(a.X - b.X) < tolerance && Math.Abs(a.Y - b.Y) < tolerance;
+            }
+
             float cp1 = CrossProduct(e1.Start, e1.End, e2.Start);
             float cp2 = CrossProduct(e1.Start, e1.End, e2.End);
             float cp3 = CrossProduct(e2.Start, e2.End, e1.Start);
             float cp4 = CrossProduct(e2.Start, e2.End, e1.End);
 
-            return (cp1 * cp2 < 0) && (cp3 * cp4 < 0);
+            // СЛУЧАЙ 1: Общие конечные точки
+            bool shareEndpoint =
+                PointsEqual(e1.Start, e2.Start) || PointsEqual(e1.Start, e2.End) ||
+                PointsEqual(e1.End, e2.Start) || PointsEqual(e1.End, e2.End);
+
+            if (shareEndpoint)
+                return true;
+
+            // СЛУЧАЙ 2: Один из концов лежит на другом отрезке
+            bool endpointOnSegment =
+                IsPointOnSegment(e1.Start, e2.Start, e2.End) ||
+                IsPointOnSegment(e1.End, e2.Start, e2.End) ||
+                IsPointOnSegment(e2.Start, e1.Start, e1.End) ||
+                IsPointOnSegment(e2.End, e1.Start, e1.End);
+
+            if (endpointOnSegment)
+                return true;
+
+            // СЛУЧАЙ 3: Классическое пересечение
+            bool properIntersection = (cp1 * cp2 < 0) && (cp3 * cp4 < 0);
+
+            if (properIntersection)
+                return true;
+
+            return false;
+        }
+
+        private float CrossProduct(PointF a, PointF b, PointF c)
+        {
+            return (b.X - a.X) * (c.Y - a.Y) - (b.Y - a.Y) * (c.X - a.X);
         }
     }
 
@@ -595,25 +1158,33 @@ namespace lab4._1
 
         public void Draw(Graphics g)
         {
+            Draw(g, Color.Black, Color.Gray);
+        }
+
+        public void Draw(Graphics g, Color edgeColor, Color vertexColor)
+        {
             if (Points.Count == 0) return;
 
             // Рисуем вершины
             foreach (var point in Points)
             {
-                g.FillEllipse(Brushes.Black, point.X - 2, point.Y - 2, 4, 4);
+                g.FillEllipse(new SolidBrush(vertexColor), point.X - 2, point.Y - 2, 4, 4);
             }
 
             // Рисуем ребра
             if (Points.Count > 1)
             {
-                for (int i = 0; i < Points.Count - 1; i++)
+                using (Pen pen = new Pen(edgeColor, 2))
                 {
-                    g.DrawLine(Pens.Black, Points[i], Points[i + 1]);
-                }
+                    for (int i = 0; i < Points.Count - 1; i++)
+                    {
+                        g.DrawLine(pen, Points[i], Points[i + 1]);
+                    }
 
-                if (IsClosed && Points.Count > 2)
-                {
-                    g.DrawLine(Pens.Black, Points[Points.Count - 1], Points[0]);
+                    if (IsClosed && Points.Count > 2)
+                    {
+                        g.DrawLine(pen, Points[Points.Count - 1], Points[0]);
+                    }
                 }
             }
         }
@@ -720,171 +1291,6 @@ namespace lab4._1
             return Translation(-center.X, -center.Y) *
                    Scaling(sx, sy) *
                    Translation(center.X, center.Y);
-        }
-    }
-
-    // Вспомогательные формы для ввода
-    public class PointInputForm : Form
-    {
-        public PointF Point { get; private set; }
-        private TextBox txtX, txtY;
-
-        public PointInputForm()
-        {
-            InitializeComponent();
-        }
-
-        private void InitializeComponent()
-        {
-            this.Size = new Size(500, 250);
-            this.Text = "Ввод координат точки";
-            this.StartPosition = FormStartPosition.CenterParent;
-            this.FormBorderStyle = FormBorderStyle.FixedDialog;
-            this.MaximizeBox = false;
-            this.MinimizeBox = false;
-
-            // Заголовок
-            Label lblTitle = new Label
-            {
-                Text = "Введите координаты точки:",
-                Location = new Point(10, 10),
-                Size = new Size(280, 20),
-                Font = new Font(this.Font, FontStyle.Bold)
-            };
-
-            // Координата X
-            Label lblX = new Label { Text = "Координата X:", Location = new Point(20, 40), Size = new Size(100, 20) };
-            txtX = new TextBox { Location = new Point(130, 40), Size = new Size(120, 25), Text = "100" };
-
-            // Координата Y
-            Label lblY = new Label { Text = "Координата Y:", Location = new Point(20, 70), Size = new Size(100, 20) };
-            txtY = new TextBox { Location = new Point(130, 70), Size = new Size(120, 25), Text = "100" };
-
-            // Кнопки
-            Button btnOk = new Button { Text = "OK", Location = new Point(80, 100), Size = new Size(70, 30) };
-            btnOk.Click += BtnOk_Click;
-
-            Button btnCancel = new Button { Text = "Cancel", Location = new Point(160, 100), Size = new Size(70, 30) };
-            btnCancel.Click += (s, e) => { this.DialogResult = DialogResult.Cancel; this.Close(); };
-
-            this.Controls.AddRange(new Control[] {
-                lblTitle, lblX, txtX, lblY, txtY, btnOk, btnCancel
-            });
-
-            // Устанавливаем фокус на первое поле ввода
-            this.ActiveControl = txtX;
-        }
-
-        private void BtnOk_Click(object sender, EventArgs e)
-        {
-            if (float.TryParse(txtX.Text, out float x) && float.TryParse(txtY.Text, out float y))
-            {
-                Point = new PointF(x, y);
-                this.DialogResult = DialogResult.OK;
-                this.Close();
-            }
-            else
-            {
-                MessageBox.Show("Введите корректные числовые координаты", "Ошибка ввода",
-                              MessageBoxButtons.OK, MessageBoxIcon.Error);
-            }
-        }
-    }
-
-    public class EdgeInputForm : Form
-    {
-        public Edge Edge { get; private set; }
-        private TextBox txtStartX, txtStartY, txtEndX, txtEndY;
-
-        public EdgeInputForm()
-        {
-            InitializeComponent();
-        }
-
-        private void InitializeComponent()
-        {
-            this.Size = new Size(500, 400);
-            this.Text = "Ввод координат ребра";
-            this.StartPosition = FormStartPosition.CenterParent;
-            this.FormBorderStyle = FormBorderStyle.FixedDialog;
-            this.MaximizeBox = false;
-            this.MinimizeBox = false;
-
-            // Заголовок
-            Label lblTitle = new Label
-            {
-                Text = "Введите координаты начала и конца ребра:",
-                Location = new Point(10, 10),
-                Size = new Size(330, 20),
-                Font = new Font(this.Font, FontStyle.Bold)
-            };
-
-            // Заголовок для начала ребра
-            Label lblStartTitle = new Label
-            {
-                Text = "Начало ребра:",
-                Location = new Point(20, 40),
-                Size = new Size(150, 20),
-                Font = new Font(this.Font, FontStyle.Underline)
-            };
-
-            // Координаты начала ребра
-            Label lblStartX = new Label { Text = "X начала:", Location = new Point(30, 70), Size = new Size(70, 20) };
-            txtStartX = new TextBox { Location = new Point(110, 70), Size = new Size(120, 25), Text = "100" };
-
-            Label lblStartY = new Label { Text = "Y начала:", Location = new Point(30, 100), Size = new Size(70, 20) };
-            txtStartY = new TextBox { Location = new Point(110, 100), Size = new Size(120, 25), Text = "100" };
-
-            // Заголовок для конца ребра
-            Label lblEndTitle = new Label
-            {
-                Text = "Конец ребра:",
-                Location = new Point(20, 130),
-                Size = new Size(150, 20),
-                Font = new Font(this.Font, FontStyle.Underline)
-            };
-
-            // Координаты конца ребра
-            Label lblEndX = new Label { Text = "X конца:", Location = new Point(30, 160), Size = new Size(70, 20) };
-            txtEndX = new TextBox { Location = new Point(110, 160), Size = new Size(120, 25), Text = "200" };
-
-            Label lblEndY = new Label { Text = "Y конца:", Location = new Point(30, 190), Size = new Size(70, 20) };
-            txtEndY = new TextBox { Location = new Point(110, 190), Size = new Size(120, 25), Text = "200" };
-
-            // Кнопки
-            Button btnOk = new Button { Text = "OK", Location = new Point(100, 220), Size = new Size(70, 30) };
-            btnOk.Click += BtnOk_Click;
-
-            Button btnCancel = new Button { Text = "Cancel", Location = new Point(180, 220), Size = new Size(70, 30) };
-            btnCancel.Click += (s, e) => { this.DialogResult = DialogResult.Cancel; this.Close(); };
-
-            this.Controls.AddRange(new Control[] {
-                lblTitle,
-                lblStartTitle, lblStartX, txtStartX, lblStartY, txtStartY,
-                lblEndTitle, lblEndX, txtEndX, lblEndY, txtEndY,
-                btnOk, btnCancel
-            });
-
-            // Устанавливаем фокус на первое поле ввода
-            this.ActiveControl = txtStartX;
-        }
-
-        private void BtnOk_Click(object sender, EventArgs e)
-        {
-            if (float.TryParse(txtStartX.Text, out float sx) &&
-                float.TryParse(txtStartY.Text, out float sy) &&
-                float.TryParse(txtEndX.Text, out float ex) &&
-                float.TryParse(txtEndY.Text, out float ey))
-            {
-                Edge = new Edge(new PointF(sx, sy), new PointF(ex, ey));
-                this.DialogResult = DialogResult.OK;
-                this.Close();
-            }
-            else
-            {
-                MessageBox.Show("Введите корректные числовые координаты", "Ошибка ввода",
-                              MessageBoxButtons.OK, MessageBoxIcon.Error);
-            }
         }
     }
 }
